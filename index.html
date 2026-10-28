@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>3枚極板のスイッチ操作</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: lab-notebook sheet — circuit schematic left, live readouts right, convergence graph and log below */
+:root{
+  --bg:#EDF1F4;        /* drafting-paper blue-grey */
+  --sheet:#FFFFFF;
+  --ink:#16233A;       /* schematic ink */
+  --muted:#5A6779;
+  --line:#C9D2DC;
+  --pos:#C2410C;       /* + charge */
+  --neg:#1D4ED8;       /* − charge */
+  --field:#0F766E;     /* electric field arrows */
+  --accent:#16233A;
+  --hi:#FDE68A;        /* active-switch highlight */
+  --target:#7C3AED;    /* Va−Vb asymptote */
+  --f-disp:"Zen Kaku Gothic New","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
+  --f-num:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0E1622;--sheet:#152131;--ink:#E6EDF5;--muted:#9AA8B8;--line:#2A3A4E;
+  --pos:#FB923C;--neg:#60A5FA;--field:#2DD4BF;--accent:#E6EDF5;--hi:#5B4A12;--target:#C4B5FD;color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0E1622;--sheet:#152131;--ink:#E6EDF5;--muted:#9AA8B8;--line:#2A3A4E;
+  --pos:#FB923C;--neg:#60A5FA;--field:#2DD4BF;--accent:#E6EDF5;--hi:#5B4A12;--target:#C4B5FD;color-scheme:dark}
+
+html,body{background:var(--bg)}
+body{margin:0}
+body{color:var(--ink);font-family:var(--f-disp);font-size:17px;line-height:1.6;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 40px}
+.wrap{max-width:1240px;margin:0 auto;display:grid;gap:18px}
+header h1{font-size:clamp(22px,3vw,32px);font-weight:900;margin:0;text-wrap:balance;letter-spacing:.02em}
+header p{margin:4px 0 0;color:var(--muted);font-size:15px}
+.num{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+
+.top{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:18px}
+@media (max-width:860px){.top{grid-template-columns:1fr}}
+.panel{background:var(--sheet);border:1px solid var(--line);border-radius:10px;padding:16px;min-width:0}
+.panel h2{font-size:14px;letter-spacing:.12em;color:var(--muted);margin:0 0 8px;font-weight:700}
+
+#circ{width:100%;height:auto;display:block;cursor:pointer;touch-action:manipulation}
+#circ text{font-family:var(--f-disp);fill:var(--ink)}
+#circ .wire{stroke:var(--ink);stroke-width:2.4;fill:none;stroke-linecap:round}
+#circ .plate{fill:var(--ink)}
+#circ .flow{stroke:var(--hi);stroke-width:9;fill:none;stroke-linecap:round;opacity:0}
+#circ .flow.on{animation:flow 900ms ease-out}
+@keyframes flow{0%{opacity:.95}100%{opacity:0}}
+#circ .blade{transition:transform 350ms ease}
+#circ .pos{fill:var(--pos);font-weight:900}
+#circ .neg{fill:var(--neg);font-weight:900}
+#circ .fld{stroke:var(--field);stroke-width:1.8;fill:var(--field)}
+.tap{font-size:13px;color:var(--muted);text-align:center;margin-top:4px}
+
+.step{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.badge{font-weight:900;font-size:22px;padding:4px 14px;border-radius:8px;background:var(--hi);color:var(--ink)}
+.seq{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 2px}
+.seq span{font-size:14px;padding:3px 9px;border:1px solid var(--line);border-radius:999px;color:var(--muted)}
+.seq span.cur{border-color:var(--ink);color:var(--ink);font-weight:700;background:var(--bg)}
+
+.read{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;margin-top:12px;align-items:baseline}
+.read dt{color:var(--muted);font-size:15px}
+.read dd{margin:0;font-size:20px;text-align:right}
+.read dd.big{font-size:30px;font-weight:600}
+.read .sep{grid-column:1/-1;border-top:1px dashed var(--line);margin:4px 0}
+.unit{font-size:13px;color:var(--muted);margin-left:4px;font-family:var(--f-disp)}
+.note{font-size:13px;color:var(--muted);margin-top:8px}
+
+.controls{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+button{font-family:var(--f-disp);font-size:17px;font-weight:700;border-radius:8px;padding:10px 16px;cursor:pointer;
+  border:2px solid var(--ink);background:var(--sheet);color:var(--ink)}
+button.primary{background:var(--ink);color:var(--sheet);font-size:20px;padding:12px 22px}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid var(--target);outline-offset:2px}
+button:disabled{opacity:.4;cursor:default}
+
+.params{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:14px}
+@media (max-width:520px){.params{grid-template-columns:1fr}}
+.params label{display:grid;gap:2px;font-size:14px;color:var(--muted)}
+.params output{font-family:var(--f-num);color:var(--ink);font-size:17px}
+input[type=range]{width:100%;accent-color:var(--ink)}
+select{font-family:var(--f-disp);font-size:16px;padding:6px;border-radius:6px;border:1px solid var(--line);background:var(--sheet);color:var(--ink)}
+
+.bottom{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:18px}
+@media (max-width:860px){.bottom{grid-template-columns:1fr}}
+#graph{width:100%;height:auto;display:block}
+#graph text{font-family:var(--f-num);fill:var(--muted);font-size:13px}
+#graph .lab{font-family:var(--f-disp);fill:var(--ink);font-size:14px}
+.formula{margin-top:8px;font-size:16px}
+.formula .num{font-size:16px}
+
+.log{max-height:300px;overflow:auto;border:1px solid var(--line);border-radius:6px}
+table{border-collapse:collapse;width:100%;font-size:15px}
+th,td{padding:5px 8px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+th{position:sticky;top:0;background:var(--sheet);color:var(--muted);font-weight:700;font-size:13px}
+td:nth-child(2),th:nth-child(2){text-align:left}
+tr.s1 td{background:color-mix(in srgb,var(--hi) 35%,transparent)}
+@media (prefers-reduced-motion:reduce){#circ .blade{transition:none}#circ .flow.on{animation:none}}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>3枚の極板とスイッチの操作</h1>
+    <p>No.9［A］　S<sub>1</sub>閉 → S<sub>1</sub>開 → S<sub>2</sub>閉 → S<sub>2</sub>開 をくり返すと，P<sub>1</sub>–P<sub>2</sub>間の電位差は <i>V</i><sub>a</sub>−<i>V</i><sub>b</sub> に近づく。回路図をクリックすると1操作ずつ進みます。</p>
+  </header>
+
+  <section class="top">
+    <div class="panel">
+      <svg id="circ" viewBox="0 0 640 430" role="img" aria-label="3枚の極板と電池a・電池b・スイッチS1・S2の回路。クリックで次の操作"></svg>
+      <div class="tap">回路図をクリック（またはスペースキー）で次の操作</div>
+    </div>
+
+    <div class="panel">
+      <h2>いまの操作</h2>
+      <div class="step"><span class="badge" id="opName">はじめ</span><span id="cycle" class="num" style="color:var(--muted)"></span></div>
+      <div class="seq" id="seq"><span>S₁閉</span><span>S₁開</span><span>S₂閉</span><span>S₂開</span></div>
+
+      <dl class="read">
+        <dt>P₁–P₂間の電位差 <i>V</i>₁</dt><dd class="big num" id="rV1">0.00<span class="unit">V</span></dd>
+        <dt>目標 <i>V</i><sub>a</sub>−<i>V</i><sub>b</sub> との差</dt><dd class="num" id="rGap">—</dd>
+        <div class="sep"></div>
+        <dt>P₂–P₃間の電位差</dt><dd class="num" id="rV2">0.00<span class="unit">V</span></dd>
+        <dt>P₁ の電位</dt><dd class="num" id="rP1">0.00<span class="unit">V</span></dd>
+        <dt>P₂ の電位</dt><dd class="num" id="rP2">0.00<span class="unit">V</span></dd>
+        <div class="sep"></div>
+        <dt>P₂ の電気量</dt><dd class="num" id="rQ2">0.00</dd>
+        <dt>いま電池を通った電気量</dt><dd class="num" id="rFlow">—</dd>
+      </dl>
+      <div class="note">電気量の単位：<i>C</i>₁×1 V（<i>C</i>₁＝ε₀<i>S</i>/<i>d</i>）。P₃ は接地（0 V）。</div>
+
+      <div class="controls">
+        <button class="primary" id="bNext">次の操作 ▶</button>
+        <button id="bCycle">1サイクル</button>
+        <button id="bAuto">自動</button>
+        <button id="bReset">リセット</button>
+      </div>
+
+      <div class="params">
+        <label for="va"><span>起電力 <i>V</i><sub>a</sub>　<output id="vaOut" class="num"></output></span>
+          <input type="range" id="va" min="2" max="12" step="1" value="10"></label>
+        <label for="vb"><span>起電力 <i>V</i><sub>b</sub>　<output id="vbOut" class="num"></output></span>
+          <input type="range" id="vb" min="0" max="11" step="1" value="4"></label>
+        <label for="gap"><span>P₂–P₃ の間隔</span>
+          <select id="gap"><option value="1">d</option><option value="2" selected>2d</option><option value="3">3d</option><option value="5">5d</option></select></label>
+      </div>
+    </div>
+  </section>
+
+  <section class="bottom">
+    <div class="panel">
+      <h2>S₁ を閉じるごとの <i>V</i>₁</h2>
+      <svg id="graph" viewBox="0 0 640 300" role="img" aria-label="S1を閉じた回数とP1–P2間の電位差のグラフ"></svg>
+      <div class="formula" id="formula"></div>
+    </div>
+    <div class="panel">
+      <h2>記録</h2>
+      <div class="log"><table>
+        <thead><tr><th>#</th><th>操作</th><th>V₁</th><th>P₂–P₃</th><th>P₂の電気量</th></tr></thead>
+        <tbody id="logBody"></tbody>
+      </table></div>
+      <div class="note">黄色の行は S₁ を閉じた直後。S₂ を閉じても <i>V</i>₁ は変わらない（P₁ の電気量が保たれるため）。</div>
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+const $ = id => document.getElementById(id);
+const NS = 'http://www.w3.org/2000/svg';
+const OPS = ['S₁閉','S₁開','S₂閉','S₂開'];
+const fmt = (x,n=2) => (Math.abs(x)<5e-10?0:x).toFixed(n);
+
+let P, S, hist, s1pts, autoTimer = null;
+
+function params(){
+  const Va = +$('va').value; let Vb = +$('vb').value;
+  if (Vb >= Va){ Vb = Va-1; $('vb').value = Vb; }
+  $('vb').max = Va-1;
+  const k = +$('gap').value;
+  return {Va, Vb, k, C1:1, C2:1/k};
+}
+function reset(){
+  P = params();
+  $('vaOut').textContent = P.Va+' V'; $('vbOut').textContent = P.Vb+' V';
+  // face charges: Q1 = P1 lower face (+), P2 upper = −Q1; q23 = P2 lower face, P3 upper = −q23
+  S = {op:-1, n:0, s1:false, s2:false, Q1:0, q23:0, flow:null};
+  hist = []; s1pts = [];
+  stopAuto(); render(); drawGraph(); renderLog();
+}
+function potentials(){
+  const {C1,C2,Va,Vb} = P;
+  const V1 = S.Q1/C1, V2 = S.q23/C2;     // P1−P2, P2−P3
+  return {V1, V2, p2:V2, p1:V2+V1};
+}
+function step(){
+  const {C1,C2,Va,Vb} = P;
+  S.op = (S.op+1)%4;
+  const op = S.op; S.flow = null;
+  if (op===0){ // S1 closed: P1 = Va, P3 = 0, P2 isolated
+    S.n++; S.s1 = true; S.s2 = false;
+    const q2 = -S.Q1 + S.q23;
+    const phi = (q2 + C1*Va)/(C1+C2);
+    const newQ1 = C1*(Va-phi);
+    S.flow = {who:'a', dq:newQ1 - S.Q1};
+    S.Q1 = newQ1; S.q23 = C2*phi;
+  } else if (op===1){ S.s1 = false; }
+  else if (op===2){ // S2 closed: P2 = Vb, P3 = 0, P1 isolated
+    S.s2 = true;
+    const newq = C2*Vb;
+    S.flow = {who:'b', dq:newq - S.q23};
+    S.q23 = newq;
+  } else { S.s2 = false; }
+  const pt = potentials();
+  const q2tot = -S.Q1 + S.q23;
+  hist.push({i:hist.length+1, op:OPS[op], cyc:S.n, V1:pt.V1, V2:pt.V2, q2:q2tot, s1:op===0});
+  if (op===0) s1pts.push(pt.V1);
+  render(true); drawGraph(); renderLog();
+}
+
+// ---------- circuit drawing ----------
+function el(tag, attrs, parent, text){
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text!=null) e.textContent = text;
+  (parent||svg).appendChild(e); return e;
+}
+const svg = $('circ');
+const X0 = 200, X1 = 430, XC = 315, Y1 = 112, GAP = 64;
+function plateY(){ return [Y1, Y1+GAP, Y1+GAP+GAP*Math.min(P.k, 2.6)]; }
+
+function render(animate){
+  svg.innerHTML = '';
+  const [y1,y2,y3] = plateY();
+  const pt = potentials();
+  const YB = 400, XA = 70, XR = 570;
+  // flow highlight paths (under wires)
+  const pathA = `M${XC},${y1} V58 H${XA} V${YB} H${XC} V${y3}`;
+  const pathB = `M${X1},${y2} H${XR} V${YB} H${XC} V${y3}`;
+  const fa = el('path',{d:pathA,class:'flow'}), fb = el('path',{d:pathB,class:'flow'});
+  if (animate && S.flow && Math.abs(S.flow.dq)>1e-9){ const f = S.flow.who==='a'?fa:fb; void f.getBBox(); f.classList.add('on'); }
+
+  // wires: battery a loop
+  el('path',{d:`M${XC},${y1} V58 H210`,class:'wire'});
+  el('path',{d:`M140,58 H${XA} V${(y1+y3)/2-14}`,class:'wire'});
+  el('path',{d:`M${XA},${(y1+y3)/2+14} V${YB} H${XR} V${(y2+YB)/2+14}`,class:'wire'});
+  el('path',{d:`M${XR},${(y2+YB)/2-14} V${y2} H520`,class:'wire'});
+  el('path',{d:`M450,${y2} H${X1}`,class:'wire'});
+  el('path',{d:`M${XC},${y3} V${YB}`,class:'wire'});
+  el('circle',{cx:XC,cy:YB,r:4,fill:'var(--ink)'});
+  // ground
+  el('path',{d:`M${XC},${YB} V${YB+10} M${XC-14},${YB+10} H${XC+14} M${XC-9},${YB+16} H${XC+9} M${XC-4},${YB+22} H${XC+4}`,class:'wire'});
+  // batteries (long plate = +, on top)
+  battery(XA,(y1+y3)/2,'電池a',`${P.Va} V`,'left');
+  battery(XR,(y2+YB)/2,'電池b',`${P.Vb} V`,'right');
+  // switches
+  sw(140,210,58,S.s1,'S₁', S.op===0||S.op===1);
+  sw(450,520,y2,S.s2,'S₂', S.op===2||S.op===3);
+
+  // field arrows
+  field(y1,y2,pt.V1/1, 1);
+  field(y2,y3,pt.V2/P.k, P.k);
+  // plates
+  [[y1,'P₁'],[y2,'P₂'],[y3,'P₃']].forEach(([y,n])=>{
+    el('rect',{x:X0,y:y-4,width:X1-X0,height:8,rx:1.5,class:'plate'});
+    el('text',{x:X0-12,y:y+6,'text-anchor':'end','font-size':20,'font-weight':700},null,n);
+  });
+  // charges on faces
+  const qmax = Math.max(P.C1*P.Va, P.C2*P.Va, 1);
+  faceCharges(y1+16, S.Q1, qmax);
+  faceCharges(y2-12, -S.Q1, qmax);
+  faceCharges(y2+16, S.q23, qmax);
+  faceCharges(y3-12, -S.q23, qmax);
+  // potential tags (right of plates)
+  const tag = (y,txt)=> el('text',{x:X1+8,y:y+24,'font-size':14,fill:'var(--muted)',style:'fill:var(--muted)'},null,txt);
+  tag(y1, `${fmt(pt.p1)} V`); tag(y2, `${fmt(pt.p2)} V`); tag(y3, `0 V`);
+  // gap labels
+  el('text',{x:X0-50,y:(y1+y2)/2+5,'text-anchor':'end','font-size':14,style:'fill:var(--muted)'},null,'d');
+  el('text',{x:X0-50,y:(y2+y3)/2+5,'text-anchor':'end','font-size':14,style:'fill:var(--muted)'},null,(P.k===1?'':P.k)+'d');
+  [[y1,y2],[y2,y3]].forEach(([a,b])=>{el('path',{d:`M${X0-40},${a+6} V${b-6} M${X0-44},${a+12} L${X0-40},${a+6} L${X0-36},${a+12} M${X0-44},${b-12} L${X0-40},${b-6} L${X0-36},${b-12}`,class:'wire','stroke-width':1.2});});
+
+  // readouts
+  $('opName').textContent = S.op<0 ? 'はじめ（帯電なし）' : OPS[S.op];
+  $('cycle').textContent = S.n ? `S₁を閉じた回数 ${S.n}` : '';
+  [...$('seq').children].forEach((c,i)=>c.classList.toggle('cur', i===S.op));
+  $('rV1').innerHTML = fmt(pt.V1)+'<span class="unit">V</span>';
+  $('rV2').innerHTML = fmt(pt.V2)+'<span class="unit">V</span>';
+  $('rP1').innerHTML = fmt(pt.p1)+'<span class="unit">V</span>';
+  $('rP2').innerHTML = fmt(pt.p2)+'<span class="unit">V</span>';
+  $('rGap').innerHTML = fmt((P.Va-P.Vb)-pt.V1,3)+'<span class="unit">V</span>';
+  $('rQ2').textContent = fmt(-S.Q1+S.q23,3);
+  $('rFlow').innerHTML = S.flow ? `${S.flow.who==='a'?'電池a':'電池b'}：${fmt(Math.abs(S.flow.dq),3)}` : '—';
+}
+function battery(x,y,name,val,side){
+  el('rect',{x:x-20,y:y-12,width:40,height:24,fill:'var(--sheet)',style:'fill:var(--sheet)'});
+  el('path',{d:`M${x-20},${y-7} H${x+20}`,class:'wire','stroke-width':2.4});
+  el('path',{d:`M${x-10},${y+7} H${x+10}`,class:'wire','stroke-width':5});
+  const tx = side==='left'? x+28 : x-28, an = side==='left'?'start':'end';
+  el('text',{x:tx,y:y-4,'text-anchor':an,'font-size':15,'font-weight':700},null,name);
+  el('text',{x:tx,y:y+16,'text-anchor':an,'font-size':15,class:'num',style:'font-family:var(--f-num)'},null,val);
+}
+function sw(xa,xb,y,closed,label,active){
+  if (active) el('rect',{x:xa-8,y:y-30,width:xb-xa+16,height:42,rx:8,fill:'var(--hi)',style:'fill:var(--hi)',opacity:.7});
+  el('circle',{cx:xa,cy:y,r:4.5,fill:'var(--ink)'}); el('circle',{cx:xb,cy:y,r:4.5,fill:'var(--sheet)',stroke:'var(--ink)','stroke-width':2});
+  const g = el('g',{class:'blade',style:`transform-origin:${xa}px ${y}px;transform:rotate(${closed?0:-28}deg)`});
+  el('path',{d:`M${xa},${y} H${xb-2}`,class:'wire','stroke-width':3},g);
+  el('text',{x:(xa+xb)/2,y:y-36,'text-anchor':'middle','font-size':17,'font-weight':700},null,`${label} ${closed?'閉':'開'}`);
+}
+function faceCharges(y,q,qmax){
+  const n = Math.round(Math.min(1,Math.abs(q)/qmax)*12);
+  if (!n) return;
+  const span = X1-X0-24;
+  for (let i=0;i<n;i++){
+    const x = X0+12 + (n===1? span/2 : span*i/(n-1));
+    el('text',{x,y:y,'text-anchor':'middle','font-size':16,class:q>0?'pos':'neg'},null,q>0?'+':'−');
+  }
+}
+function field(ya,yb,E,k){
+  const Emax = Math.max(P.Va,1);
+  const n = Math.round(Math.min(1,Math.abs(E)/Emax)*7);
+  if (!n || (yb-ya)<34) return;
+  const down = E>0; // higher potential on top → field points down
+  for (let i=0;i<n;i++){
+    const x = X0+30 + (X1-X0-60)*(n===1?0.5:i/(n-1)) + 10;
+    const a = ya+22, b = yb-18;
+    const [s,e] = down?[a,b]:[b,a];
+    el('path',{d:`M${x},${s} V${e}`,class:'fld'});
+    const d = down?-1:1;
+    el('path',{d:`M${x-4},${e+6*d} L${x},${e} L${x+4},${e+6*d} Z`,class:'fld'});
+  }
+}
+
+// ---------- graph ----------
+function drawGraph(){
+  const g = $('graph'); g.innerHTML='';
+  const L=56,R=616,T=24,B=256;
+  const N = Math.max(8, s1pts.length+1);
+  const ymax = P.Va;
+  const X = i => L + (R-L)*i/N, Y = v => B - (B-T)*v/ymax;
+  const add=(t,a,tx)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);if(tx!=null)e.textContent=tx;g.appendChild(e);return e;};
+  // grid & ticks
+  const stepV = ymax<=6?1:2;
+  for(let v=0;v<=ymax+1e-9;v+=stepV){
+    add('line',{x1:L,x2:R,y1:Y(v),y2:Y(v),stroke:'var(--line)','stroke-width':1});
+    add('text',{x:L-8,y:Y(v)+4,'text-anchor':'end'},v);
+  }
+  const tickEvery = N>16?2:1;
+  for(let i=0;i<=N;i+=tickEvery) add('text',{x:X(i),y:B+18,'text-anchor':'middle'},i);
+  add('line',{x1:L,x2:R,y1:B,y2:B,stroke:'var(--muted)','stroke-width':1.2});
+  add('line',{x1:L,x2:L,y1:T,y2:B,stroke:'var(--muted)','stroke-width':1.2});
+  add('text',{x:(L+R)/2,y:B+38,'text-anchor':'middle',class:'lab'},'S₁ を閉じた回数 n');
+  add('text',{x:14,y:T-8,class:'lab'},'V₁ [V]');
+  // target
+  const tv = P.Va-P.Vb;
+  add('line',{x1:L,x2:R,y1:Y(tv),y2:Y(tv),stroke:'var(--target)','stroke-width':2,'stroke-dasharray':'7 5'});
+  add('text',{x:R-4,y:Y(tv)-7,'text-anchor':'end',class:'lab',style:'fill:var(--target)'},`Va−Vb = ${tv} V`);
+  // theory curve (faint)
+  const r = P.C1/(P.C1+P.C2);
+  let v = (1-r)*P.Va, d = `M${X(1)},${Y(v)}`;   // 1回目：P₂は帯電していない
+  for(let i=2;i<=N;i++){ v = r*v + (1-r)*tv; d += ` L${X(i)},${Y(v)}`; }
+  add('path',{d,fill:'none',stroke:'var(--line)','stroke-width':2});
+  // measured
+  if (s1pts.length){
+    let dm = `M${X(0)},${Y(0)}`; s1pts.forEach((p,i)=> dm += ` L${X(i+1)},${Y(p)}`);
+    add('path',{d:dm,fill:'none',stroke:'var(--ink)','stroke-width':2.4});
+    s1pts.forEach((p,i)=>{
+      const last = i===s1pts.length-1;
+      add('circle',{cx:X(i+1),cy:Y(p),r:last?7:5,fill:last?'var(--hi)':'var(--ink)',stroke:'var(--ink)','stroke-width':2});
+    });
+  }
+  const rs = P.k===2?'2/3':(P.k===1?'1/2':`${P.k}/${P.k+1}`);
+  $('formula').innerHTML = `漸化式　<i>V</i>₁<sup>(n+1)</sup> = <span class="num">${rs}</span>·<i>V</i>₁<sup>(n)</sup> + <span class="num">${P.k===2?'1/3':(P.k===1?'1/2':`1/${P.k+1}`)}</span>·(<i>V</i><sub>a</sub>−<i>V</i><sub>b</sub>)
+   　→　目標との差は 1回ごとに <b class="num">${rs}</b> 倍になる`;
+}
+function renderLog(){
+  const tb = $('logBody'); tb.innerHTML='';
+  hist.slice().reverse().forEach(h=>{
+    const tr = document.createElement('tr'); if(h.s1) tr.className='s1';
+    tr.innerHTML = `<td class="num">${h.i}</td><td>${h.op}${h.s1?`（${h.cyc}回目）`:''}</td><td class="num">${fmt(h.V1,3)}</td><td class="num">${fmt(h.V2,3)}</td><td class="num">${fmt(h.q2,3)}</td>`;
+    tb.appendChild(tr);
+  });
+  if(!hist.length){ tb.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted)">「次の操作」で記録が始まります</td></tr>'; }
+}
+
+// ---------- controls ----------
+function stopAuto(){ if(autoTimer){clearInterval(autoTimer);autoTimer=null;} $('bAuto').textContent='自動'; }
+$('bNext').onclick = step;
+svg.addEventListener('click', step);
+$('bCycle').onclick = ()=>{ for(let i=0;i<4;i++) step(); };
+$('bAuto').onclick = ()=>{
+  if(autoTimer){ stopAuto(); return; }
+  $('bAuto').textContent='停止'; autoTimer = setInterval(step, 900);
+};
+$('bReset').onclick = reset;
+['va','vb','gap'].forEach(id=>$(id).addEventListener('input', reset));
+document.addEventListener('keydown', e=>{
+  if((e.key===' '||e.key==='ArrowRight') && !/INPUT|SELECT|BUTTON/.test(document.activeElement.tagName)){ e.preventDefault(); step(); }
+});
+reset();
+// open in a worked state: first S1 close shown
+step();
+})();
+</script>
+
+</body>
+</html>
